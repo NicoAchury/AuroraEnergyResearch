@@ -187,9 +187,11 @@ class OptimalBatteryOperation(object):
         discharging_eff = df_para[df_para[df_para.columns[0]] == "Battery discharging efficiency"]["Values"].values[0]
         Net_Discharge = [LpVariable(cat='Continuous', lowBound=-min_capacity / [2 * (1 - discharging_eff)], upBound=0, name=f"Net_Discharge{t}") for t in range(time1)]
 
+        # Binary variables defining the battery operation
         Bin_charge = [LpVariable(cat='Binary', name=f"Bin_charge_{t}") for t in range(time1)]
         Bin_discharge = [LpVariable(cat='Binary', name=f"Bin_discharge_{t}") for t in range(time1)]
 
+        # Binary variables defining the trading on market 3
         Bin_charge_m3 = [LpVariable(cat='Binary', name=f"Bin_charge_m3_{t}") for t in range(time1)]
         Bin_discharge_m3 = [LpVariable(cat='Binary', name=f"Bin_discharge_m3_{t}") for t in range(time1)]
 
@@ -220,7 +222,6 @@ class OptimalBatteryOperation(object):
         opt_model += Bin_charge[0] == df_initial_conditions['Bin_Charge']
         opt_model += Bin_discharge[0] == df_initial_conditions['Bin_Discharge']
 
-        # for t in range(0,48+1):
         opt_model += Bin_charge_m3[0] == df_initial_conditions['Bin_Charge_m3']
         opt_model += Bin_discharge_m3[0] == df_initial_conditions['Bin_Discharge_m3']
 
@@ -231,7 +232,6 @@ class OptimalBatteryOperation(object):
         #--------------------------Constraints---------------------------
         #////////////////////////////////////////////////////////////////////
 
-        # Dynamic charge
         charging_eff = df_para[df_para[df_para.columns[0]] == "Battery charging efficiency"]["Values"].values[0]
         for t in range(1, time1):
             opt_model += Net_Charge[t] == (Charge_m1[t] + Charge_m2[t] + Charge_m3[t] + Charge_curt[t])*(1-charging_eff)
@@ -252,32 +252,26 @@ class OptimalBatteryOperation(object):
             opt_model += Charge_m3[t] == (max_capacity/2) * Bin_charge_m3[t]
             opt_model += -Discharge_m3[t] == (min_capacity / 2) * Bin_discharge_m3[t]
 
-        # Dynamic discharge
         discharging_eff = df_para[df_para[df_para.columns[0]] == "Battery discharging efficiency"]["Values"].values[0]
         for t in range(1, time1):
             opt_model += Net_Discharge[t]*(1-discharging_eff) == (Discharge_m1[t] + Discharge_m2[t] + Discharge_m3[t] + Discharge_curt[t])
             opt_model += -Net_Discharge[t] <= SOE[t - 1]
 
         for t in range(1, time1):
-
             opt_model += -Discharge_m1[t] <= (min_capacity / 2)
             opt_model += -Discharge_m2[t] <= (min_capacity / 2)
             opt_model += -Discharge_m3[t] <= (min_capacity / 2)
             opt_model += -Discharge_curt[t] <= (min_capacity / 2)
 
-        # Dynamic curtailment
         for t in range(1, time1):
             opt_model += Charge_curt[t] >= 0
             opt_model += Discharge_curt[t] <= 0
             opt_model += Charge_curt[t] <= curtailment[t]
             opt_model += Discharge_curt[t] >= -curtailment[t]
 
-        # Dynamic component for the SOE
         for t in range(1, time1):
             opt_model += SOE[t] == SOE[t-1] + Net_Charge[t] + Net_Discharge[t]
             opt_model += SOE[t] <= max_storage
-
-        # M3 dispatch constraints
 
         for t2 in range(1, time2):
             p = t2*48
@@ -291,7 +285,7 @@ class OptimalBatteryOperation(object):
         #////////////////////////////////////////////////////////////////////
 
         # The model optimises the battery's operation
-        # Capex and fixed operation costs are included outside of the model
+        # Capex and fixed operation costs are included out of the model
 
         # Revenue
         revenue_m1 = -lpSum(price_m1[t] * Discharge_m1[t] * 0.5 for t in range(time1))
@@ -420,89 +414,6 @@ if __name__ == "__main__":
     yearly_results = dict()
     yearly_objective = dict()
 
-
-    # start_date = f"{2019}-01-01 00:00:00"
-    # end_date = f"{2019}-12-31 23:30:00"
-    # start_date_format = datetime.strptime(start_date, '%Y-%m-%d %H:%M:%S')
-    # end_date_format = datetime.strptime(end_date, '%Y-%m-%d %H:%M:%S')
-    # t1 = df_full_market_data[df_full_market_data["Date"] == start_date_format]["Date"].index[0]
-    # t2 = df_full_market_data[df_full_market_data["Date"] == end_date_format]["Date"].index[0]
-    # df_full_market_data_t_ini = df_full_market_data.loc[t1:t2].copy()
-    # # Run the model
-    # df_battery_operation_half_hourly_ini, df_battery_operation_daily_ini = obj_optimal_battery.model(df_para,
-    #                                                                                                  df_full_market_data_t_ini,
-    #                                                                                                  df_initial_conditions_0,
-    #                                                                                                  df_initial_conditions_0_m3)
-    # # # Get the latest state of decision and auxiliary variables
-    # initial_conditions_n_1 = df_battery_operation_half_hourly_ini.iloc[-1]
-    # initial_conditions_n_1_m3 = df_battery_operation_daily_ini.iloc[-1]
-    # # Process results
-    # df_full_market_data_t_ini.reset_index(inplace=True, drop=True)
-    # df_battery_operation_half_hourly_ini["Date"] = df_full_market_data_t_ini["Date"]
-    # df_battery_operation_half_hourly_ini.set_index("Date", drop=True, inplace=True)
-    # # Save results
-    # monthly_results[month] = df_battery_operation_half_hourly_ini
-
-
-
-    #
-    #
-    #
-    #
-    #
-    # for year in years:
-    #     for month in range(1,6+1):
-    #         if month == 1:
-    #             start_date = f"{2018}-01-01 00:00:00"
-    #             end_date = f"{2018}-01-31 23:30:00"
-    #             start_date_format = datetime.strptime(start_date, '%Y-%m-%d %H:%M:%S')
-    #             end_date_format = datetime.strptime(end_date, '%Y-%m-%d %H:%M:%S')
-    #             t1 = df_full_market_data[df_full_market_data["Date"] == start_date_format]["Date"].index[0]
-    #             t2 = df_full_market_data[df_full_market_data["Date"] == end_date_format]["Date"].index[0]
-    #             df_full_market_data_t_ini = df_full_market_data.loc[t1:t2].copy()
-    #             # Run the model
-    #             df_battery_operation_half_hourly_ini, df_battery_operation_daily_ini = obj_optimal_battery.model(df_para,
-    #                                                                                                              df_full_market_data_t_ini,
-    #                                                                                                              df_initial_conditions_0,
-    #                                                                                                              df_initial_conditions_0_m3)
-    #             # Get the latest state of decision and auxiliary variables
-    #             initial_conditions_n_1 = df_battery_operation_half_hourly_ini.iloc[-1]
-    #             initial_conditions_n_1_m3 = df_battery_operation_daily_ini.iloc[-1]
-    #             # Process results
-    #             df_full_market_data_t_ini.reset_index(inplace=True, drop=True)
-    #             df_battery_operation_half_hourly_ini["Date"] = df_full_market_data_t_ini["Date"]
-    #             df_battery_operation_half_hourly_ini.set_index("Date", drop=True, inplace=True)
-    #             # Save results
-    #             monthly_results[month] = df_battery_operation_half_hourly_ini
-    #         else:
-    #             start_date = f"{2018}-01-01 00:00:00"
-    #             end_date = f"{2018}-01-31 23:30:00"
-    #             start_date_format = datetime.strptime(start_date, '%Y-%m-%d %H:%M:%S') + relativedelta(month=month)
-    #             end_date_format = datetime.strptime(end_date, '%Y-%m-%d %H:%M:%S') + relativedelta(month=month) + relativedelta(day=31)
-    #             t1 = df_full_market_data[df_full_market_data["Date"] == start_date_format]["Date"].index[0]
-    #             t2 = df_full_market_data[df_full_market_data["Date"] == end_date_format]["Date"].index[0]
-    #             df_full_market_data_t = df_full_market_data.loc[t1:t2].copy()
-    #             # Run the model
-    #             df_battery_operation_half_hourly, df_battery_operation_daily = obj_optimal_battery.model(df_para,
-    #                                                                                                      df_full_market_data_t,
-    #                                                                                                      initial_conditions_n_1,
-    #                                                                                                      initial_conditions_n_1_m3)
-    #             # Get the latest state of decision and auxiliary variables
-    #             initial_conditions_n_1 = df_battery_operation_half_hourly.iloc[-1]
-    #             initial_conditions_n_1_m3 = df_battery_operation_daily.iloc[-1]
-    #             # Process results
-    #             df_full_market_data_t.reset_index(inplace=True, drop=True)
-    #             df_battery_operation_half_hourly["Date"] = df_full_market_data_t["Date"]
-    #             df_battery_operation_half_hourly.set_index("Date", drop=True, inplace=True)
-    #             # Save results
-    #             monthly_results[month] = df_battery_operation_half_hourly
-
-
-
-
-
-
-
     for i, year in enumerate(years):
         if i == 0:
             print("-------------------------------------------")
@@ -592,5 +503,3 @@ if __name__ == "__main__":
     end_time = datetime.now()
     print(f"Time finished           :{end_time}")
     print("Duration                :{}".format(end_time-start_time))
-
-
